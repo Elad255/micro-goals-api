@@ -5,8 +5,10 @@ from app.database import get_db
 from app.models.user import User
 from app.models.goal import Goal
 from app.schemas.goal import GoalCreate, GoalUpdate, GoalResponse
+from app.schemas.micro_task import MicroTaskResponse
+from app.models.micro_task import MicroTask
 from app.utils.dependencies import get_current_user
-
+from app.services.decomposition import decompose_goal
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -27,7 +29,7 @@ def create_goal(
     db.add(new_goal)
     db.commit()
     db.refresh(new_goal)
-
+    decompose_goal(new_goal, db)
     return new_goal
 
 
@@ -103,3 +105,24 @@ def delete_goal(
 
     db.delete(goal)
     db.commit()
+
+
+@router.get("/{goal_id}/tasks", response_model=List[MicroTaskResponse])
+def get_goal_tasks(
+    goal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    goal = db.query(Goal).filter(
+        Goal.id == goal_id,
+        Goal.user_id == current_user.id,
+    ).first()
+
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    tasks = db.query(MicroTask).filter(
+        MicroTask.goal_id == goal_id,
+    ).order_by(MicroTask.day_number).all()
+
+    return tasks
