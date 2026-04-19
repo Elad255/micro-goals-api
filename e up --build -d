@@ -1,4 +1,0 @@
-[33m2be9144[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m)[m Day 5: Goals CRUD endpoints - create, read, update, delete
-[33m2dcd51c[m Day 4: Add pytest tests for registration, login, and protected endpoints
-[33mc103b47[m Day 3: User authentication with JWT, bcrypt hashing, and protected endpoints
-[33m0f756da[m Day 1-2: Project setup with FastAPI, PostgreSQL, Docker, and Alembic
