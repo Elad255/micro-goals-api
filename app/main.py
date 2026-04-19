@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends
 from app.database import Base, engine
-from app.routers import auth
+from app.routers import auth, goals
 from app.models.user import User
 from app.utils.dependencies import get_current_user
 
@@ -10,6 +10,7 @@ Base.metadata.create_all(bind=engine)
 
 app.include_router(auth.router)
 
+app.include_router(goals.router)
 
 @app.get("/")
 def root():
