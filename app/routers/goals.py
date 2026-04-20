@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -5,7 +6,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.goal import Goal
 from app.schemas.goal import GoalCreate, GoalUpdate, GoalResponse
-from app.schemas.micro_task import MicroTaskResponse
+from app.schemas.micro_task import MicroTaskResponse, MicroTaskUpdate, GoalProgress
 from app.models.micro_task import MicroTask
 from app.utils.dependencies import get_current_user
 from app.services.decomposition import decompose_goal
@@ -126,3 +127,84 @@ def get_goal_tasks(
     ).order_by(MicroTask.day_number).all()
 
     return tasks
+
+
+@router.patch("/{goal_id}/tasks/{task_id}", response_model=MicroTaskResponse)
+def update_task(
+    goal_id: int,
+    task_id: int,
+    task_data: MicroTaskUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    goal = db.query(Goal).filter(
+        Goal.id == goal_id,
+        Goal.user_id == current_user.id,
+    ).first()
+
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    task = db.query(MicroTask).filter(
+        MicroTask.id == task_id,
+        MicroTask.goal_id == goal_id,
+    ).first()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    task.is_completed = task_data.is_completed
+
+    if task_data.is_completed:
+        task.completed_at = datetime.utcnow()
+    else:
+        task.completed_at = None
+
+    db.commit()
+    db.refresh(task)
+
+    return task
+
+
+@router.get("/{goal_id}/progress", response_model=GoalProgress)
+def get_goal_progress(
+    goal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    goal = db.query(Goal).filter(
+        Goal.id == goal_id,
+        Goal.user_id == current_user.id,
+    ).first()
+
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    tasks = db.query(MicroTask).filter(
+        MicroTask.goal_id == goal_id,
+    ).all()
+
+    total_tasks = len(tasks)
+    completed_tasks = len([t for t in tasks if t.is_completed])
+    remaining_tasks = total_tasks - completed_tasks
+
+    if total_tasks > 0:
+        progress_percentage = round((completed_tasks / total_tasks) * 100, 1)
+    else:
+        progress_percentage = 0.0
+
+    now = datetime.utcnow()
+    days_since_start = (now - goal.created_at).days + 1
+    current_day = min(days_since_start, total_tasks)
+    days_remaining = max(0, (goal.deadline - now).days)
+
+    return GoalProgress(
+        goal_id=goal.id,
+        goal_title=goal.title,
+        total_tasks=total_tasks,
+        completed_tasks=completed_tasks,
+        remaining_tasks=remaining_tasks,
+        progress_percentage=progress_percentage,
+        current_day=current_day,
+        days_remaining=days_remaining,
+    )
