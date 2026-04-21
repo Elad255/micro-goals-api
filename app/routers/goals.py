@@ -9,7 +9,7 @@ from app.schemas.goal import GoalCreate, GoalUpdate, GoalResponse
 from app.schemas.micro_task import MicroTaskResponse, MicroTaskUpdate, GoalProgress
 from app.models.micro_task import MicroTask
 from app.utils.dependencies import get_current_user
-from app.services.decomposition import decompose_goal
+from app.services.decomposition import decompose_goal, rebalance_goal
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -208,3 +208,21 @@ def get_goal_progress(
         current_day=current_day,
         days_remaining=days_remaining,
     )
+
+@router.post("/{goal_id}/rebalance", response_model=List[MicroTaskResponse])
+def rebalance_goal_tasks(
+    goal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    goal = db.query(Goal).filter(
+        Goal.id == goal_id,
+        Goal.user_id == current_user.id,
+    ).first()
+
+    if not goal:
+        raise HTTPException(status_code=404, detail="Goal not found")
+
+    rebalanced_tasks = rebalance_goal(goal, db)
+
+    return rebalanced_tasks

@@ -90,3 +90,37 @@ def decompose_goal(goal, db):
         db.refresh(task)
 
     return tasks
+
+
+def rebalance_goal(goal, db):
+    now = datetime.utcnow()
+    days_remaining = max(1, (goal.deadline - now).days)
+
+    incomplete_tasks = (
+        db.query(MicroTask)
+        .filter(
+            MicroTask.goal_id == goal.id,
+            MicroTask.is_completed == False,
+        )
+        .order_by(MicroTask.day_number)
+        .all()
+    )
+
+    if not incomplete_tasks:
+        return []
+
+    total_incomplete = len(incomplete_tasks)
+
+    for i, task in enumerate(incomplete_tasks):
+        if days_remaining >= total_incomplete:
+            spacing = days_remaining / total_incomplete
+            task.day_number = round(spacing * (i + 1))
+        else:
+            task.day_number = i + 1
+
+    db.commit()
+
+    for task in incomplete_tasks:
+        db.refresh(task)
+
+    return incomplete_tasks
